@@ -37,7 +37,7 @@ StyledRect {
 
         StyledText {
             width: parent.width
-            text: card.missing ? I18n.trFor("quickshare", "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The first build takes a few minutes.") : I18n.trFor("quickshare", "The plugin was updated. Rebuild the service (version %1) to match the plugin (version %2).").arg(QuickShareService.version).arg(QuickShareService.pluginVersion)
+            text: card.missing ? I18n.trFor("quickshare", "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The build downloads the Rust libraries it uses from crates.io and takes a few minutes the first time.") : I18n.trFor("quickshare", "The plugin was updated. Rebuild the service (version %1) to match the plugin (version %2).").arg(QuickShareService.version).arg(QuickShareService.pluginVersion)
             color: Theme.surfaceVariantText
             font.pixelSize: Theme.fontSizeSmall
             wrapMode: Text.Wrap

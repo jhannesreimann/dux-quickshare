@@ -54,10 +54,10 @@ On Arch Linux: `sudo pacman -S --needed rust bluez bluez-utils networkmanager wp
 Browse (or `dms plugins install quickshare`), enable it and add its widget to
 the bar. Then open it and press **Install**: the plugin builds its background
 service (`dms-quickshare`, a Rust program) from its own source code and
-installs it to `~/.local/bin`. This needs Rust, no root access, and downloads
-nothing besides the Rust crates cargo fetches. The first build takes a few
-minutes. After a plugin update, the panel offers to rebuild the service the
-same way.
+installs it to `~/.local/bin`. This needs Rust and no root access; the only
+download is the locked Rust crates cargo fetches from crates.io. The first
+build takes a few minutes. After a plugin update, the panel offers to rebuild
+the service the same way.
 
 **From source.**
 
@@ -86,7 +86,7 @@ This is the only part that needs root, once, at install time. It installs:
 | File | Purpose |
 |---|---|
 | `/usr/lib/dms-quickshare/wifi-helper` | Creates one extra virtual interface (`qsap0`) on your Wi-Fi card and runs a short-lived, password-protected hotspot on it (its own `wpa_supplicant` in access point mode plus `dnsmasq` for DHCP only: no internet sharing, no DNS, no default route). Also creates `qssta0` on cards that support a second client connection. |
-| `/usr/share/polkit-1/actions/io.github.jhannesreimann.dms-quickshare.policy` | Lets the active desktop session run exactly that helper through `pkexec` without a password. Other users, SSH sessions and other programs get no such right. |
+| `/usr/share/polkit-1/actions/io.github.jhannesreimann.dms-quickshare.policy` | Lets any program in the active local session run exactly that helper as root through `pkexec` without a password; other users and remote or inactive sessions cannot. The helper only knows four commands (start and stop the hotspot, add and remove its client interface) and checks every argument. |
 | `/usr/lib/udev/rules.d/85-dms-quickshare.rules` | Tells NetworkManager to leave `qsap0` alone. |
 
 Why: a normal user cannot create Wi-Fi interfaces, and NetworkManager cannot
@@ -217,10 +217,12 @@ The PC keeps its own Wi-Fi connection in every mode except the opt-in
   read the Quick Share advertisement while you are visible; any other
   request is left to you. The pairing is removed again after the transfer.
   Devices you paired yourself are never touched.
-- Bluetooth is never switched on behind your back: opening the panel only
-  looks for devices if Bluetooth is already on. Choosing a visibility or
-  sending powers the adapter on, but never lifts airplane mode or an rfkill
-  block; only the panel's **Turn on** button does that.
+- When Bluetooth is switched on: opening the panel only looks for devices if
+  it is already on. The daemon powers the adapter on when you choose a
+  visibility or send, and at start while you are visible (the
+  `autoEnableBluetooth` setting; with the default visibility "everyone" that
+  means as soon as the plugin is enabled). None of these lift airplane mode
+  or an rfkill block; only the panel's **Turn on** button does that.
 
 ## Troubleshooting
 

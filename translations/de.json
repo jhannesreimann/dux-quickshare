@@ -182,8 +182,8 @@
   "Quick Share is not running. Enable the plugin to change its settings.": {
     "Quick Share is not running. Enable the plugin to change its settings.": "Quick Share läuft nicht. Aktiviere das Plugin, um die Einstellungen zu ändern."
   },
-  "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The first build takes a few minutes.": {
-    "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The first build takes a few minutes.": "Quick Share braucht seinen Hintergrunddienst. Er wird aus dem Quellcode dieses Plugins auf deinem PC gebaut und ohne Root-Rechte nach ~/.local/bin installiert. Der erste Build dauert ein paar Minuten."
+  "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The build downloads the Rust libraries it uses from crates.io and takes a few minutes the first time.": {
+    "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The build downloads the Rust libraries it uses from crates.io and takes a few minutes the first time.": "Quick Share braucht seinen Hintergrunddienst. Er wird aus dem Quellcode dieses Plugins auf deinem PC gebaut und ohne Root-Rechte nach ~/.local/bin installiert. Der Build lädt die verwendeten Rust-Bibliotheken von crates.io herunter und dauert beim ersten Mal ein paar Minuten."
   },
   "Quick Share: finish the setup": {
     "Quick Share: finish the setup": "Quick Share: Einrichtung abschließen"
