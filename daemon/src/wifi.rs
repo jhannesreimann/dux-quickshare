@@ -1099,13 +1099,21 @@ pub async fn report(allow_interrupt: bool) -> Vec<(&'static str, String)> {
         return out;
     };
     let caps = radio_caps(iface).await;
+    // The helper runs its own wpa_supplicant for the hotspot; NetworkManager
+    // itself may use iwd instead.
+    let wpa_supplicant = which("wpa_supplicant");
     if caps.sta && helper {
         out.push((
             "ok",
             format!("{iface} can join the phone's Wi-Fi Direct next to your connection (seamless)"),
         ));
-    } else if caps.ap && helper && dnsmasq {
+    } else if caps.ap && helper && dnsmasq && wpa_supplicant {
         out.push(("ok", format!("{iface} hosts a temporary hotspot next to your connection (phone switches network briefly)")));
+    } else if caps.ap && helper && !wpa_supplicant {
+        out.push((
+            "warn",
+            format!("{iface} could host a temporary hotspot, but wpa_supplicant is not installed (the Wi-Fi helper needs it)"),
+        ));
     } else if (caps.ap || caps.sta) && !helper {
         out.push((
             "warn",

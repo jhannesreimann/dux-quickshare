@@ -336,7 +336,8 @@ Singleton {
         id: socket
 
         path: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/dms-quickshare.sock"
-        connected: root.enabled
+        // Nothing to dial while the daemon is not installed.
+        connected: root.enabled && !root.binaryMissing
 
         onConnectionStateChanged: {
             if (linkUp) {
@@ -361,7 +362,6 @@ Singleton {
 
     onEnabledChanged: {
         if (enabled) {
-            resolveBinary();
             startTimer.restart();
         } else {
             startTimer.stop();
@@ -382,8 +382,17 @@ Singleton {
         });
     }
 
+    // Look for the binary again, e.g. when the setup card is shown after an
+    // install from a terminal. Nothing polls while it is missing.
+    function recheckBinary() {
+        if (enabled && binaryMissing && !installing)
+            startTimer.restart();
+    }
+
     // Give an already running daemon a moment before starting our own. The
-    // binary is looked up each time, so installing or removing it is noticed.
+    // binary is looked up on each attempt; when it is missing this stops
+    // until the plugin is enabled again, an install finishes or
+    // recheckBinary() is called.
     Timer {
         id: startTimer
 
@@ -392,13 +401,8 @@ Singleton {
             if (!root.enabled || socket.linkUp || backend.running)
                 return;
             root.resolveBinary(() => {
-                if (!root.enabled || socket.linkUp || backend.running || root.installing)
+                if (!root.enabled || socket.linkUp || backend.running || root.installing || root.binaryMissing)
                     return;
-                if (root.binaryMissing) {
-                    root._restarts++;
-                    restartTimer.restart();
-                    return;
-                }
                 backend.running = true;
             });
         }

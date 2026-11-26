@@ -38,10 +38,12 @@ Android phones should behave the same.
 - NetworkManager, for fast transfers when phone and PC are on different
   networks
 - `iw`, so the daemon can see what your Wi-Fi card supports
-- `dnsmasq`, for the temporary hotspot some setups use
+- `dnsmasq` and `wpa_supplicant`, for the temporary hotspot the Wi-Fi helper
+  runs (`wpa_supplicant` usually comes with NetworkManager, but not on setups
+  that use iwd)
 - Rust 1.89 or newer to build the daemon
 
-On Arch Linux: `sudo pacman -S --needed rust bluez bluez-utils networkmanager iw dnsmasq`
+On Arch Linux: `sudo pacman -S --needed rust bluez bluez-utils networkmanager wpa_supplicant iw dnsmasq`
 
 ## Installation
 

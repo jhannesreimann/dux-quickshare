@@ -783,10 +783,21 @@ async fn reconcile_loop(
         Ok(rule) => MessageStream::for_match_rule(rule, &conn, None).await.ok(),
         Err(_) => None,
     };
-    let mut tick = tokio::time::interval(Duration::from_secs(5));
+    // Woken by what can change the outcome of apply(): the wanted state, the
+    // adapter's properties, adapters coming and going, and bluetoothd
+    // restarts. Only a failed registration is retried on a timer.
+    let mut adapter_events = adapter_signals(&conn)
+        .await
+        .map(|s| s.filter(|m| std::future::ready(m.as_ref().is_ok_and(concerns_adapter))));
+    let mut retry: Option<Duration> = None;
     loop {
         let desired = desired_rx.borrow_and_update().clone();
         let status = apply(&conn, &desired, &mut applied, &events).await;
+        retry = needs_retry(&desired, &applied, &status).then(|| {
+            retry.map_or(Duration::from_secs(5), |d| {
+                (d * 2).min(Duration::from_secs(60))
+            })
+        });
         status_tx.send_if_modified(|s| {
             if *s != status {
                 *s = status;
@@ -807,7 +818,8 @@ async fn reconcile_loop(
         tokio::select! {
             changed = desired_rx.changed() => if changed.is_err() { break },
             Some(req) = enable_rx.recv() => enable_radio(&conn, req).await,
-            _ = tick.tick() => {},
+            _ = async { match retry { Some(d) => tokio::time::sleep(d).await, None => std::future::pending().await } } => {},
+            Some(_) = async { match adapter_events.as_mut() { Some(s) => s.next().await, None => std::future::pending().await } } => {},
             Some(_) = async { match owner_changes.as_mut() { Some(s) => s.next().await, None => std::future::pending().await } } => {
                 info!("Bluetooth: bluetoothd restarted, registering again");
                 applied = Applied { connectable_before: applied.connectable_before, ..Default::default() };
@@ -815,6 +827,86 @@ async fn reconcile_loop(
         }
     }
     restore_connectable(&conn, &mut applied).await;
+}
+
+/// BlueZ signals about adapters: property changes (Powered, Connectable, ...)
+/// and adapters (or devices, filtered by `concerns_adapter`) appearing or
+/// disappearing.
+async fn adapter_signals(
+    conn: &Connection,
+) -> Option<futures_util::stream::SelectAll<MessageStream>> {
+    let rules = [
+        MatchRule::builder()
+            .msg_type(MsgType::Signal)
+            .sender(BLUEZ)
+            .interface(PROPS_IFACE)
+            .member("PropertiesChanged")
+            .arg(0, ADAPTER_IFACE)
+            .build(),
+        MatchRule::builder()
+            .msg_type(MsgType::Signal)
+            .sender(BLUEZ)
+            .interface(OM_IFACE)
+            .member("InterfacesAdded")
+            .build(),
+        MatchRule::builder()
+            .msg_type(MsgType::Signal)
+            .sender(BLUEZ)
+            .interface(OM_IFACE)
+            .member("InterfacesRemoved")
+            .build(),
+    ];
+    let mut streams = Vec::new();
+    for rule in rules {
+        match rule {
+            Ok(rule) => match MessageStream::for_match_rule(rule, conn, None).await {
+                Ok(s) => streams.push(s),
+                Err(e) => warn!("Bluetooth: cannot subscribe to adapter signals: {e}"),
+            },
+            Err(e) => warn!("Bluetooth: bad match rule: {e}"),
+        }
+    }
+    (!streams.is_empty()).then(|| futures_util::stream::select_all(streams))
+}
+
+/// Whether a signal can change the outcome of apply(): an adapter appearing
+/// or disappearing (not a device; scans add and remove those all the time),
+/// or a change of an adapter property apply() reads. Other properties, such
+/// as the service list our own registrations change, are ignored.
+fn concerns_adapter(msg: &zbus::Message) -> bool {
+    const WATCHED: [&str; 3] = ["Powered", "Connectable", "Address"];
+    let header = msg.header();
+    match header.member().map(|m| m.as_str()) {
+        Some("PropertiesChanged") => msg
+            .body()
+            .deserialize::<(String, HashMap<String, OwnedVariant>, Vec<String>)>()
+            .is_ok_and(|(_, changed, invalidated)| {
+                WATCHED
+                    .iter()
+                    .any(|p| changed.contains_key(*p) || invalidated.iter().any(|i| i == p))
+            }),
+        Some("InterfacesAdded") => msg
+            .body()
+            .deserialize::<(
+                OwnedObjectPath,
+                HashMap<String, HashMap<String, OwnedVariant>>,
+            )>()
+            .is_ok_and(|(_, ifaces)| ifaces.contains_key(ADAPTER_IFACE)),
+        Some("InterfacesRemoved") => msg
+            .body()
+            .deserialize::<(OwnedObjectPath, Vec<String>)>()
+            .is_ok_and(|(_, ifaces)| ifaces.iter().any(|i| i == ADAPTER_IFACE)),
+        _ => false,
+    }
+}
+
+/// Whether apply() left something undone on a usable adapter, which only
+/// trying again can fix (a failed registration).
+fn needs_retry(desired: &Desired, applied: &Applied, status: &BtStatus) -> bool {
+    status.powered
+        && ((desired.visible.is_some() && (!applied.profile || applied.adv.is_none()))
+            || desired.fast_init != applied.fast_init
+            || desired.scan != applied.scanning)
 }
 
 async fn restore_connectable(conn: &Connection, applied: &mut Applied) {
@@ -888,7 +980,7 @@ async fn apply(
         .unwrap_or(false);
     status.powered = powered && !status.blocked;
     if !status.powered {
-        // BlueZ forgets advertisements while off; register again once powered.
+        // Register again once powered (register_adv replaces what BlueZ kept).
         applied.adv = None;
         applied.fast_init = false;
         applied.scanning = false;
@@ -1142,10 +1234,9 @@ async fn register_adv(
     uuid: &str,
     data: Vec<u8>,
 ) -> Result<()> {
-    let _ = conn
-        .object_server()
-        .remove::<ExtendedAdvertisement, _>(path)
-        .await;
+    // BlueZ may still hold an earlier registration of this path (it keeps
+    // advertisements over a power cycle); replace it.
+    unregister_adv(conn, adapter, path).await;
     let service_uuid = uuid.to_owned();
     match kind {
         AdvKind::Extended => {

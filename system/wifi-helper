@@ -61,6 +61,9 @@ start-ap)
     [ "$freq" -ge 2412 ] && [ "$freq" -le 5895 ] || die "unsupported frequency"
     case "$width" in 20 | 40 | 80) ;; *) die "unsupported channel width" ;; esac
     case "$center" in "" | *[!0-9]*) die "invalid center frequency" ;; esac
+    for tool in wpa_supplicant dnsmasq iw ip; do
+        command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
+    done
     # Same channel as the existing connection; optionally just as wide.
     wide=""
     if [ "$width" = 40 ]; then

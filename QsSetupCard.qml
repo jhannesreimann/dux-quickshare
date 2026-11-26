@@ -15,6 +15,9 @@ StyledRect {
     radius: Theme.cornerRadius
     color: Theme.cardSurface
 
+    // Opening the panel or settings notices a daemon installed meanwhile.
+    Component.onCompleted: QuickShareService.recheckBinary()
+
     Column {
         id: column
 
