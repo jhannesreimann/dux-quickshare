@@ -258,8 +258,10 @@ struct State {
     discovery_until: Option<Instant>,
     ui_clients: usize,
     next_id: u64,
-    /// When a phone last read our advertisement over GATT.
-    last_adv_read: Option<Instant>,
+    /// Addresses whose "Just Works" pairing request we answer (see dux.rs):
+    /// the phone we are sending to, or one that just read our advertisement.
+    /// Address -> (until when, only while visible). One request each.
+    pairing_allowed: HashMap<String, (Instant, bool)>,
     /// Pairings we accepted for Quick Share (device path -> when), removed later.
     temp_pairings: HashMap<String, Instant>,
     /// Device paths with a running incoming Bluetooth session.
@@ -504,12 +506,14 @@ impl Daemon {
         self.mark_changed();
     }
 
-    /// Explicit user intent to use the radio: switch Bluetooth on if needed.
+    /// The user chose to be visible or to send: power the adapter on if
+    /// needed. Never lifts an rfkill block (airplane mode); only the explicit
+    /// "Turn on" action (enableBluetooth) does that.
     fn user_wants_bluetooth(&self) {
         if self.lock().config.use_bluetooth
             && let Some(bt) = self.bt.get()
         {
-            bt.request_enable(true);
+            bt.request_enable(false);
         }
     }
 
@@ -531,7 +535,7 @@ impl Daemon {
         let mut st = self.lock();
         st.discovery_until = Some(Instant::now() + Duration::from_secs(seconds.clamp(5, 600)));
         drop(st);
-        self.user_wants_bluetooth();
+        // Looking around never switches Bluetooth on; the panel offers that.
         self.apply_radios();
     }
 
@@ -642,6 +646,12 @@ impl Daemon {
         if stream.is_none()
             && let (Some((mac, _)), Some(bt)) = (dev.bt, self.bt.get())
         {
+            // The phone may ask to pair when we connect over Bluetooth Classic.
+            self.allow_pairing(
+                crate::bluetooth::format_mac(mac),
+                Duration::from_secs(180),
+                false,
+            );
             match bt.connect(mac).await {
                 Ok(s) => stream = Some((Box::new(s), "bluetooth")),
                 Err(e) => errors.push(format!("Bluetooth: {e:#}")),
@@ -659,23 +669,32 @@ impl Daemon {
 
     // ----- temporary Bluetooth pairings (see dux.rs) -----
 
-    /// Whether a "Just Works" pairing request from `address` is almost
-    /// certainly an incoming Quick Share connection.
+    fn allow_pairing(&self, address: String, for_how_long: Duration, only_while_visible: bool) {
+        let mut st = self.lock();
+        let until = Instant::now() + for_how_long;
+        st.pairing_allowed
+            .insert(address.to_uppercase(), (until, only_while_visible));
+    }
+
+    /// Whether a "Just Works" pairing request from `address` belongs to a
+    /// Quick Share connection: it comes from the phone we are sending to, or
+    /// from the device that just read our advertisement while we are visible.
     pub async fn should_accept_pairing(&self, address: &str) -> bool {
-        let (visible, recent_read, rate_ok) = {
+        let (allowed, rate_ok) = {
             let mut st = self.lock();
             let now = Instant::now();
             st.recent_pairing_accepts
                 .retain(|t| now.duration_since(*t) < Duration::from_secs(60));
-            (
-                st.visible() && st.config.use_bluetooth,
-                // Phones cache our advertisement for a while, so allow some slack.
-                st.last_adv_read
-                    .is_some_and(|t| now.duration_since(t) < Duration::from_secs(600)),
-                st.recent_pairing_accepts.len() < 5,
-            )
+            st.pairing_allowed.retain(|_, (until, _)| *until > now);
+            let visible = st.visible();
+            let allowed = st.config.use_bluetooth
+                && st
+                    .pairing_allowed
+                    .get(&address.trim().to_uppercase())
+                    .is_some_and(|(_, only_while_visible)| visible || !only_while_visible);
+            (allowed, st.recent_pairing_accepts.len() < 5)
         };
-        if !(visible && recent_read && rate_ok) {
+        if !(allowed && rate_ok) {
             return false;
         }
         let Some(bt) = self.bt.get() else {
@@ -694,6 +713,7 @@ impl Daemon {
         };
         let mut st = self.lock();
         st.recent_pairing_accepts.push(Instant::now());
+        st.pairing_allowed.remove(&address.trim().to_uppercase());
         st.temp_pairings.insert(path, Instant::now());
     }
 
@@ -817,8 +837,7 @@ pub async fn run() -> Result<()> {
             discovery_until: None,
             ui_clients: 0,
             next_id: 0,
-            // Phones may still have our advertisement cached from before a restart.
-            last_adv_read: Some(Instant::now()),
+            pairing_allowed: HashMap::new(),
             temp_pairings: HashMap::new(),
             bt_sessions: HashMap::new(),
             recent_pairing_accepts: Vec::new(),
@@ -968,9 +987,10 @@ async fn bt_events(d: Arc<Daemon>, mut rx: mpsc::Receiver<BtEvent>) {
                     }
                 });
             }
-            BtEvent::AdvertisementRead => {
-                d.lock().last_adv_read = Some(Instant::now());
+            BtEvent::AdvertisementRead(Some(reader)) => {
+                d.allow_pairing(reader, Duration::from_secs(600), true);
             }
+            BtEvent::AdvertisementRead(None) => {}
             BtEvent::Sighting(s) => {
                 let id = s.endpoint.endpoint_id.clone();
                 let discovering = d.lock().discovery_until.is_some();

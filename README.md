@@ -19,7 +19,10 @@ daemon also has a command line interface, so it works without the shell too.
 - **Send** files, links and text to nearby phones.
 - **Your device name and visibility** like on Android: visible to everyone,
   to everyone for 10 minutes, or hidden (sending still works while hidden).
-- **No pairing prompts**: phones connect over Bluetooth Low Energy.
+- **No pairing prompts**: phones connect over Bluetooth Low Energy. When a
+  connection uses Bluetooth Classic instead, the daemon answers that phone's
+  pairing request and removes the pairing afterwards (see
+  [Privacy and security](#privacy-and-security)).
 - **Fast Wi-Fi transfers, also between different networks.** Bluetooth only
   sets up the connection; the data then moves over Wi-Fi (see
   [How the Wi-Fi part works](#how-the-wi-fi-part-works)). Your own Wi-Fi
@@ -38,12 +41,12 @@ Android phones should behave the same.
 - NetworkManager, for fast transfers when phone and PC are on different
   networks
 - `iw`, so the daemon can see what your Wi-Fi card supports
-- `dnsmasq` and `wpa_supplicant`, for the temporary hotspot the Wi-Fi helper
-  runs (`wpa_supplicant` usually comes with NetworkManager, but not on setups
-  that use iwd)
+- `dnsmasq`, `wpa_supplicant` and `iproute2` (`ip`), for the temporary
+  hotspot the Wi-Fi helper runs (`wpa_supplicant` usually comes with
+  NetworkManager, but not on setups that use iwd)
 - Rust 1.89 or newer to build the daemon
 
-On Arch Linux: `sudo pacman -S --needed rust bluez bluez-utils networkmanager wpa_supplicant iw dnsmasq`
+On Arch Linux: `sudo pacman -S --needed rust bluez bluez-utils networkmanager wpa_supplicant iw iproute2 dnsmasq`
 
 ## Installation
 
@@ -208,11 +211,16 @@ The PC keeps its own Wi-Fi connection in every mode except the opt-in
 - The daemon writes only to your download folder, `~/.config/dms-quickshare/`
   and its socket in `$XDG_RUNTIME_DIR`.
 - Bluetooth Classic is only used when the PC sends, or as a fallback when
-  Bluetooth LE connections are unavailable. If a phone connects over
-  Bluetooth Classic and asks for a "Just Works" pairing, the daemon accepts
-  it only while you are visible and a phone just read the Quick Share
-  advertisement, and removes that pairing again after the transfer. Devices
-  you paired yourself are never touched.
+  Bluetooth LE connections are unavailable. A phone may then ask for a
+  "Just Works" pairing. The daemon answers that one request itself only if
+  it comes from the phone you are sending to, or from the device that just
+  read the Quick Share advertisement while you are visible; any other
+  request is left to you. The pairing is removed again after the transfer.
+  Devices you paired yourself are never touched.
+- Bluetooth is never switched on behind your back: opening the panel only
+  looks for devices if Bluetooth is already on. Choosing a visibility or
+  sending powers the adapter on, but never lifts airplane mode or an rfkill
+  block; only the panel's **Turn on** button does that.
 
 ## Troubleshooting
 

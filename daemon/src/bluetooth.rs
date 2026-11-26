@@ -97,8 +97,9 @@ pub enum BtEvent {
     NearbySharing,
     /// Incoming RFCOMM connection (socket, BlueZ device path).
     Incoming(OwnedFd, String),
-    /// A phone read our advertisement over GATT (it is about to connect).
-    AdvertisementRead,
+    /// A phone read our advertisement over GATT (it is about to connect);
+    /// its address, when BlueZ says which device read it.
+    AdvertisementRead(Option<String>),
 }
 
 pub struct Bluetooth {
@@ -303,8 +304,12 @@ impl GattSlotCharacteristic {
             .get("offset")
             .and_then(|v| u16::try_from(v).ok())
             .unwrap_or(0) as usize;
-        debug!("Bluetooth: GATT read of the advertisement (offset {offset})");
-        let _ = self.events.try_send(BtEvent::AdvertisementRead);
+        let reader = options
+            .get("device")
+            .and_then(|v| OwnedObjectPath::try_from(v.clone()).ok())
+            .and_then(|p| address_from_path(p.as_str()));
+        debug!("Bluetooth: GATT read of the advertisement by {reader:?} (offset {offset})");
+        let _ = self.events.try_send(BtEvent::AdvertisementRead(reader));
         self.value.get(offset..).unwrap_or_default().to_vec()
     }
 
@@ -898,6 +903,20 @@ fn concerns_adapter(msg: &zbus::Message) -> bool {
             .is_ok_and(|(_, ifaces)| ifaces.iter().any(|i| i == ADAPTER_IFACE)),
         _ => false,
     }
+}
+
+/// "AA:BB:CC:DD:EE:FF" from a BlueZ device path (".../dev_AA_BB_CC_DD_EE_FF").
+fn address_from_path(path: &str) -> Option<String> {
+    let dev = path.rsplit('/').next()?.strip_prefix("dev_")?;
+    (dev.len() == 17).then(|| dev.replace('_', ":").to_uppercase())
+}
+
+/// "AA:BB:CC:DD:EE:FF" for a Bluetooth address.
+pub fn format_mac(mac: [u8; 6]) -> String {
+    mac.iter()
+        .map(|b| format!("{b:02X}"))
+        .collect::<Vec<_>>()
+        .join(":")
 }
 
 /// Whether apply() left something undone on a usable adapter, which only
@@ -1723,6 +1742,19 @@ fn sdp_find_rfcomm_channel(mac: [u8; 6], uuid: [u8; 16]) -> io::Result<Option<u8
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn addresses() {
+        assert_eq!(
+            address_from_path("/org/bluez/hci0/dev_a4_c1_38_0f_22_9b").as_deref(),
+            Some("A4:C1:38:0F:22:9B")
+        );
+        assert_eq!(address_from_path("/org/bluez/hci0"), None);
+        assert_eq!(
+            format_mac([0xa4, 0xc1, 0x38, 0x0f, 0x22, 0x9b]),
+            "A4:C1:38:0F:22:9B"
+        );
+    }
 
     #[test]
     fn finds_rfcomm_channel() {

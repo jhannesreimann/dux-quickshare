@@ -1,13 +1,14 @@
 //! Integration with the Dux Shell (DMS) backend socket.
 //!
-//! When an Android phone connects to us over Bluetooth Classic it asks for a
+//! A Quick Share connection over Bluetooth Classic makes the phone ask for a
 //! "Just Works" pairing (no PIN). Dux's Bluetooth agent only shows that
 //! request while the Control Center's Bluetooth page is open, so otherwise it
-//! silently times out and the transfer fails. We answer such requests
-//! ourselves, but only when they almost certainly belong to a Quick Share
-//! connection: we are visible, the request is Just Works, the device is not
-//! already paired, and a phone fetched our Quick Share advertisement moments
-//! ago. The temporary pairing is removed again after the transfer.
+//! silently times out and the transfer fails. We answer such a request
+//! ourselves only when it comes from the phone we are sending to, or from
+//! the device that just read our Quick Share advertisement while we are
+//! visible, and that device is not already paired. Each such allowance
+//! covers one request; everything else is left to the user. The temporary
+//! pairing is removed again after the transfer.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -112,9 +113,7 @@ async fn session(d: &Arc<Daemon>, path: &std::path::Path) -> Result<()> {
             debug!("Dux: leaving pairing request from {name} ({address}) to the user");
             continue;
         }
-        info!(
-            "Accepting Bluetooth pairing from {name} ({address}) for an incoming Quick Share connection"
-        );
+        info!("Accepting Bluetooth pairing from {name} ({address}) for a Quick Share connection");
         let submit = json!({
             "id": next_id,
             "method": "bluetooth.pairing.submit",
