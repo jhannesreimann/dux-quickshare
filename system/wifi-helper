@@ -1,0 +1,153 @@
+#!/bin/sh
+# dms-quickshare Wi-Fi helper (runs as root via pkexec).
+#
+# Lets a laptop with a single Wi-Fi card use a short-lived, private Wi-Fi
+# link for fast Quick Share transfers while it stays connected to its normal
+# network. It only ever touches its own virtual interfaces:
+#
+#   qsap0   a hotspot on the same radio and channel as the normal connection,
+#           run by its own wpa_supplicant (access point mode) and dnsmasq
+#           (DHCP only: no internet sharing, no DNS, no default route)
+#   qssta0  a second client interface, on radios that allow two (configured
+#           by NetworkManager)
+#
+#   wifi-helper start-ap <existing-interface> <frequency-MHz> [<width-MHz> <center-MHz>]
+#           reads "<ssid> <passphrase>" from stdin, prints the hotspot address
+#   wifi-helper stop-ap
+#   wifi-helper add <existing-interface> sta
+#   wifi-helper remove sta
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+RUN=/run/dms-quickshare
+AP=qsap0
+STA=qssta0
+
+die() { echo "$*" >&2; exit 2; }
+
+valid_iface() {
+    case "$1" in "" | *[!A-Za-z0-9_.-]*) die "invalid interface name" ;; esac
+    [ -e "/sys/class/net/$1/phy80211" ] || die "$1 is not a Wi-Fi interface"
+}
+
+phy_of() { basename "$(readlink "/sys/class/net/$1/phy80211")"; }
+
+random_mac() { od -An -N5 -tx1 /dev/urandom | tr -s ' ' ':' | sed 's/^:/02:/; s/:$//'; }
+
+kill_pidfile() {
+    if [ -f "$1" ]; then
+        pid="$(cat "$1" 2>/dev/null || true)"
+        case "$pid" in "" | *[!0-9]*) ;; *) kill "$pid" 2>/dev/null || true ;; esac
+        rm -f "$1"
+    fi
+}
+
+stop_ap() {
+    kill_pidfile "$RUN/dnsmasq.pid"
+    kill_pidfile "$RUN/wpa_supplicant.pid"
+    rm -f "$RUN/ap.conf" "$RUN/leases"
+    if [ -e "/sys/class/net/$AP" ]; then
+        iw dev "$AP" del 2>/dev/null || true
+    fi
+}
+
+case "${1:-}" in
+start-ap)
+    parent="${2:-}"
+    freq="${3:-}"
+    width="${4:-20}"
+    center="${5:-$freq}"
+    valid_iface "$parent"
+    case "$freq" in "" | *[!0-9]*) die "invalid frequency" ;; esac
+    [ "$freq" -ge 2412 ] && [ "$freq" -le 5895 ] || die "unsupported frequency"
+    case "$width" in 20 | 40 | 80) ;; *) die "unsupported channel width" ;; esac
+    case "$center" in "" | *[!0-9]*) die "invalid center frequency" ;; esac
+    # Same channel as the existing connection; optionally just as wide.
+    wide=""
+    if [ "$width" = 40 ]; then
+        wide="    ht40=1"
+    elif [ "$width" = 80 ]; then
+        wide="    ht40=1
+    vht=1
+    max_oper_chwidth=1
+    vht_center_freq1=$center"
+    fi
+    IFS=' ' read -r ssid psk || die "missing network name and passphrase"
+    case "$ssid" in "" | *[!A-Za-z0-9-]*) die "invalid network name" ;; esac
+    case "$psk" in "" | *[!A-Za-z0-9]*) die "invalid passphrase" ;; esac
+    [ "${#ssid}" -le 32 ] && [ "${#psk}" -ge 8 ] && [ "${#psk}" -le 63 ] || die "invalid lengths"
+
+    umask 077
+    mkdir -p "$RUN"
+    stop_ap
+    iw phy "$(phy_of "$parent")" interface add "$AP" type __ap
+    # Keep NetworkManager away (the udev rule normally does this already).
+    nmcli device set "$AP" managed no >/dev/null 2>&1 || true
+    ip link set dev "$AP" down 2>/dev/null || true
+    iw dev "$AP" set type __ap 2>/dev/null || true
+    ip link set dev "$AP" address "$(random_mac)" 2>/dev/null || true
+
+    # A private /24 that is not in use yet.
+    net=""
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        n=$(( $(od -An -N1 -tu1 /dev/urandom) % 200 + 20 ))
+        if ! ip -4 addr | grep -q "inet 10\.47\.$n\."; then net="10.47.$n"; break; fi
+    done
+    [ -n "$net" ] || { stop_ap; die "no free address range"; }
+
+    cat > "$RUN/ap.conf" <<EOF
+ap_scan=2
+network={
+    ssid="$ssid"
+    mode=2
+    frequency=$freq
+$wide
+    key_mgmt=WPA-PSK
+    proto=RSN
+    pairwise=CCMP
+    group=CCMP
+    psk="$psk"
+}
+EOF
+    wpa_supplicant -B -i "$AP" -D nl80211 -c "$RUN/ap.conf" -P "$RUN/wpa_supplicant.pid" >/dev/null 2>&1 \
+        || { stop_ap; die "the Wi-Fi card refused to start an access point"; }
+    up=""
+    for _ in $(seq 1 40); do
+        if iw dev "$AP" info 2>/dev/null | grep -q "type AP" && iw dev "$AP" info 2>/dev/null | grep -q "ssid"; then
+            up=1
+            break
+        fi
+        sleep 0.25
+    done
+    [ -n "$up" ] || { stop_ap; die "the access point did not start (channel not allowed?)"; }
+
+    ip addr add "$net.1/24" dev "$AP"
+    dnsmasq --conf-file=/dev/null --interface="$AP" --bind-interfaces --except-interface=lo \
+        --listen-address="$net.1" --port=0 --no-resolv --no-hosts \
+        --dhcp-range="$net.10,$net.200,255.255.255.0,30m" --dhcp-authoritative \
+        --dhcp-option=3 --dhcp-option=6 \
+        --dhcp-leasefile="$RUN/leases" --pid-file="$RUN/dnsmasq.pid" \
+        || { stop_ap; die "could not start the DHCP server"; }
+    echo "$net.1"
+    ;;
+stop-ap)
+    stop_ap
+    ;;
+add)
+    parent="${2:-}"
+    valid_iface "$parent"
+    [ "${3:-}" = sta ] || die "usage: $0 add <interface> sta"
+    [ -e "/sys/class/net/$STA" ] && exit 0
+    iw phy "$(phy_of "$parent")" interface add "$STA" type managed
+    ip link set dev "$STA" address "$(random_mac)" 2>/dev/null || true
+    ;;
+remove)
+    [ "${2:-}" = sta ] || die "usage: $0 remove sta"
+    if [ -e "/sys/class/net/$STA" ]; then
+        iw dev "$STA" del
+    fi
+    ;;
+*)
+    echo "usage: $0 start-ap <interface> <MHz> | stop-ap | add <interface> sta | remove sta" >&2
+    exit 2
+    ;;
+esac

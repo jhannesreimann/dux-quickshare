@@ -1,91 +1,145 @@
-use anyhow::Result;
-use log::{error, info, trace};
-use rqs_lib::channel::{ChannelDirection, TransferType};
-use std::sync::Arc;
-use zbus::connection::Builder;
+//! dms-quickshare: Quick Share (Nearby Share) for Linux.
+//!
+//! Send and receive files, links and text with Android devices over
+//! Bluetooth and Wi-Fi. Runs as a small daemon controlled through a Unix
+//! socket by the Dux Shell plugin or the command line.
 
-mod core;
-mod dbus;
+mod ble_l2cap;
+mod bluetooth;
+mod cli;
+mod crypto;
+mod daemon;
+mod dux;
+mod endpoint;
+mod lan;
+mod link;
+mod notify;
+mod proto;
+mod sharing;
+mod transport;
+mod util;
+mod wifi;
 
-use crate::core::QuickShareCore;
-use crate::dbus::QuickShareDBus;
+use anyhow::{Result, bail};
+use serde_json::json;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
-    info!("Starting DMS Quick Share Daemon");
+const HELP: &str = "\
+dms-quickshare — Quick Share for Linux (send and receive with Android)
 
-    // Initialize core and get message receiver
-    let (core, mut msg_receiver) = match QuickShareCore::new().await {
-        Ok((c, r)) => (c, r),
-        Err(e) => {
-            error!("Failed to initialize QuickShareCore: {}", e);
-            return Err(e);
-        }
+USAGE:
+    dms-quickshare daemon                     Run the background service
+    dms-quickshare status                     Show name, visibility, radios, transfers
+    dms-quickshare devices [SECONDS]          List nearby devices
+    dms-quickshare send [--to NAME] FILE...   Send files (opens the shell picker without --to)
+    dms-quickshare send --to NAME --text TEXT Send a text or link
+    dms-quickshare visibility [everyone|temporary|hidden]
+    dms-quickshare name [NEW NAME]            Show or change the device name
+    dms-quickshare accept|reject|cancel ID    Answer or stop a transfer
+    dms-quickshare bluetooth-on               Switch Bluetooth on
+    dms-quickshare doctor                     Check the system setup
+    dms-quickshare --version
+";
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let daemon_mode = matches!(args.first().map(String::as_str), Some("daemon" | "run"));
+    let default_level = if daemon_mode {
+        "info,zbus=warn,mdns_sd=warn"
+    } else {
+        "warn"
     };
-    
-    let core = Arc::new(core);
-
-    let daemon = QuickShareDBus {
-        core: Arc::clone(&core),
-    };
-
-    let conn = match Builder::session() {
-        Ok(builder) => builder,
-        Err(e) => {
-            error!("Failed to connect to D-Bus session: {}", e);
-            return Err(e.into());
-        }
+    let mut logger =
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default_level));
+    // journald adds its own timestamps.
+    if std::env::var_os("JOURNAL_STREAM").is_some() || !daemon_mode {
+        logger.format_timestamp(None);
+    } else {
+        logger.format_timestamp_millis();
     }
-    .name("org.danklinux.QuickShare")?
-    .serve_at("/org/danklinux/QuickShare", daemon)?
-    .build()
-    .await?;
+    logger.init();
 
-    info!("D-Bus interface registered on org.danklinux.QuickShare");
-    
-    let iface_ref = conn.object_server().interface::<_, QuickShareDBus>("/org/danklinux/QuickShare").await?;
-    let signal_context = iface_ref.signal_context().clone().into_owned();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(2)
+        .build();
+    let result = match runtime {
+        Ok(rt) => rt.block_on(dispatch(args)),
+        Err(e) => Err(e.into()),
+    };
+    if let Err(e) = result {
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
+    }
+}
 
-    // Background task to process events from the rqs library
-    tokio::spawn(async move {
-        while let Ok(msg) = msg_receiver.recv().await {
-            if msg.direction == ChannelDirection::LibToFront {
-                let is_inbound = msg.rtype == Some(TransferType::Inbound);
-                
-                let mut total_bytes = 0;
-                let mut ack_bytes = 0;
-                if let Some(ref meta) = msg.meta {
-                    total_bytes = meta.total_bytes;
-                    ack_bytes = meta.ack_bytes;
-                }
-                
-                if let Some(state) = msg.state {
-                    let state_str = format!("{:?}", state);
-                    trace!("Transfer {} state changed: {}", msg.id, state_str);
-                    
-                    let _ = QuickShareDBus::transfer_progress(&signal_context, &msg.id, &state_str, ack_bytes, total_bytes).await;
-
-                    if is_inbound && state_str == "WaitingForUserConsent" {
-                        let device_name = msg.meta.as_ref()
-                            .and_then(|m| m.source.as_ref())
-                            .and_then(|s| Some(s.name.clone()))
-                            .unwrap_or_else(|| "Unknown".to_string());
-                            
-                        let pin = msg.meta.as_ref()
-                            .and_then(|m| m.pin_code.clone())
-                            .unwrap_or_else(|| "".to_string());
-
-                        info!("Incoming transfer request from {} (PIN: {})", device_name, pin);
-                        let _ = QuickShareDBus::transfer_requested(&signal_context, &msg.id, &device_name, &pin).await;
-                    }
+async fn dispatch(args: Vec<String>) -> Result<()> {
+    let cmd = args.first().map(String::as_str).unwrap_or("help");
+    let rest = &args[args.len().min(1)..];
+    match cmd {
+        "daemon" | "run" => daemon::run().await,
+        "status" => cli::status().await,
+        "devices" => cli::devices(rest.first().and_then(|s| s.parse().ok()).unwrap_or(15)).await,
+        "send" => {
+            let mut to = None;
+            let mut text = None;
+            let mut files = Vec::new();
+            let mut it = rest.iter();
+            while let Some(a) = it.next() {
+                match a.as_str() {
+                    "--to" | "-t" => to = it.next().cloned(),
+                    "--text" => text = it.next().cloned(),
+                    _ => files.push(a.clone()),
                 }
             }
+            cli::send(to, text, files).await
         }
-    });
-
-    let pending = std::future::pending::<()>();
-    pending.await;
-
-    Ok(())
+        "visibility" => {
+            match rest.first() {
+                Some(v) => {
+                    cli::simple("setVisibility", json!({ "visibility": v })).await?;
+                    println!("Visibility: {v}");
+                }
+                None => {
+                    let st = cli::simple("getState", json!({})).await?;
+                    println!(
+                        "{}",
+                        st["config"]["visibility"].as_str().unwrap_or_default()
+                    );
+                }
+            }
+            Ok(())
+        }
+        "name" => {
+            if rest.is_empty() {
+                let st = cli::simple("getState", json!({})).await?;
+                println!(
+                    "{}",
+                    st["config"]["deviceName"].as_str().unwrap_or_default()
+                );
+            } else {
+                let cfg = cli::simple("setName", json!({ "name": rest.join(" ") })).await?;
+                println!("Name: {}", cfg["deviceName"].as_str().unwrap_or_default());
+            }
+            Ok(())
+        }
+        "accept" | "reject" | "cancel" => {
+            let Some(id) = rest.first() else {
+                bail!("usage: dms-quickshare {cmd} TRANSFER_ID")
+            };
+            cli::simple(cmd, json!({ "transfer": id }))
+                .await
+                .map(|_| ())
+        }
+        "bluetooth-on" => cli::simple("enableBluetooth", json!({})).await.map(|_| ()),
+        "doctor" => cli::doctor().await,
+        "-V" | "--version" | "version" => {
+            println!("dms-quickshare {}", daemon::VERSION);
+            Ok(())
+        }
+        "help" | "-h" | "--help" => {
+            print!("{HELP}");
+            Ok(())
+        }
+        other => bail!("unknown command {other:?}\n\n{HELP}"),
+    }
 }

@@ -1,0 +1,3 @@
+# dms-quickshare: the temporary Quick Share hotspot interface is run by
+# /usr/lib/dms-quickshare/wifi-helper; NetworkManager must not manage it.
+SUBSYSTEM=="net", ENV{INTERFACE}=="qsap0", ENV{NM_UNMANAGED}="1"

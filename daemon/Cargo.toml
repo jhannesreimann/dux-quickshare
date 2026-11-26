@@ -1,13 +1,42 @@
 [package]
-name = "dms-quickshare-daemon"
-version = "0.1.0"
-edition = "2021"
+name = "dms-quickshare"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+description = "Quick Share for Linux: send and receive files with Android over Bluetooth and Wi-Fi"
+repository = "https://github.com/jhannesreimann/dux-quickshare"
+readme = "../README.md"
+keywords = ["quickshare", "nearby-share", "android", "bluetooth", "file-transfer"]
+
+[[bin]]
+name = "dms-quickshare"
+path = "src/main.rs"
 
 [dependencies]
-rqs_lib = { git = "https://github.com/Martichou/rquickshare" }
-tokio = { version = "1", features = ["full"] }
-zbus = "4.0"
-anyhow = "1.0"
-log = "0.4"
-env_logger = "0.11"
-dirs = "6.0.0"
+aes = "0.9.4"
+anyhow = "1.0.104"
+base64 = "0.23.1"
+bytes = "1.12.1"
+cbc = { version = "0.2.1", features = ["alloc"] }
+env_logger = { version = "0.11.11", default-features = false, features = ["auto-color"] }
+futures-util = { version = "0.3.34", default-features = false, features = ["std", "sink"] }
+hkdf = "0.13.0"
+hmac = "0.13.0"
+libc = "0.2.191"
+log = "0.4.35"
+mdns-sd = "0.22.0"
+p256 = { version = "0.14.0", default-features = false, features = ["ecdh", "getrandom", "std"] }
+prost = "0.14.6"
+rand = "0.10.4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync", "fs", "signal", "process"] }
+tokio-util = { version = "0.7.20", features = ["codec"] }
+zbus = { version = "6.3.0", default-features = false, features = ["tokio", "proxy", "service", "object-manager"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true

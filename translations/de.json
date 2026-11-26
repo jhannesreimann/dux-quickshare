@@ -1,0 +1,296 @@
+{
+  "%1 B": {
+    "%1 B": "%1 B"
+  },
+  "%1 files": {
+    "%1 files": "%1 Dateien"
+  },
+  "%1 min": {
+    "%1 min": "%1 Min."
+  },
+  "%1 photos": {
+    "%1 photos": "%1 Fotos"
+  },
+  "%1 videos": {
+    "%1 videos": "%1 Videos"
+  },
+  "%1 wants to share": {
+    "%1 wants to share": "%1 möchte etwas teilen"
+  },
+  "A link": {
+    "A link": "Ein Link"
+  },
+  "A text": {
+    "A text": "Ein Text"
+  },
+  "Accept": {
+    "Accept": "Annehmen"
+  },
+  "Accept files without asking": {
+    "Accept files without asking": "Dateien ohne Nachfrage annehmen"
+  },
+  "Allow a short Wi-Fi interruption": {
+    "Allow a short Wi-Fi interruption": "Kurze WLAN-Unterbrechung erlauben"
+  },
+  "Anyone nearby who can see this PC could then send you files.": {
+    "Anyone nearby who can see this PC could then send you files.": "Dann könnte dir jeder in der Nähe, der diesen PC sieht, Dateien senden."
+  },
+  "Ask for incoming transfers and report finished ones.": {
+    "Ask for incoming transfers and report finished ones.": "Bei eingehenden Übertragungen nachfragen und über abgeschlossene informieren."
+  },
+  "Bluetooth": {
+    "Bluetooth": "Bluetooth"
+  },
+  "Bluetooth is off": {
+    "Bluetooth is off": "Bluetooth ist aus"
+  },
+  "Building needs Rust 1.89 or newer. Install it with your package manager (Arch: sudo pacman -S rust) or from rustup.rs, then press Install.": {
+    "Building needs Rust 1.89 or newer. Install it with your package manager (Arch: sudo pacman -S rust) or from rustup.rs, then press Install.": "Zum Bauen wird Rust 1.89 oder neuer benötigt. Installiere es mit deinem Paketmanager (Arch: sudo pacman -S rust) oder über rustup.rs und klicke dann auf Installieren."
+  },
+  "Building…": {
+    "Building…": "Wird gebaut…"
+  },
+  "Cancel": {
+    "Cancel": "Abbrechen"
+  },
+  "Cancelled": {
+    "Cancelled": "Abgebrochen"
+  },
+  "Change": {
+    "Change": "Ändern"
+  },
+  "Change name": {
+    "Change name": "Namen ändern"
+  },
+  "Choose files": {
+    "Choose files": "Dateien auswählen"
+  },
+  "Choose files to send": {
+    "Choose files to send": "Dateien zum Senden auswählen"
+  },
+  "Clear": {
+    "Clear": "Leeren"
+  },
+  "Code %1: check that %2 shows the same": {
+    "Code %1: check that %2 shows the same": "Code %1: Prüfe, ob %2 denselben anzeigt"
+  },
+  "Compiling %1": {
+    "Compiling %1": "Kompiliere %1"
+  },
+  "Connecting": {
+    "Connecting": "Verbinde"
+  },
+  "Connections": {
+    "Connections": "Verbindungen"
+  },
+  "Daemon %1. For a full check of your Bluetooth and Wi-Fi setup run: dms-quickshare doctor": {
+    "Daemon %1. For a full check of your Bluetooth and Wi-Fi setup run: dms-quickshare doctor": "Daemon %1. Für eine vollständige Prüfung von Bluetooth und WLAN: dms-quickshare doctor"
+  },
+  "Decline": {
+    "Decline": "Ablehnen"
+  },
+  "Declined": {
+    "Declined": "Abgelehnt"
+  },
+  "Device name": {
+    "Device name": "Gerätename"
+  },
+  "Everyone": {
+    "Everyone": "Alle"
+  },
+  "Failed": {
+    "Failed": "Fehlgeschlagen"
+  },
+  "Fast transfers over Wi-Fi": {
+    "Fast transfers over Wi-Fi": "Schnelle Übertragung über WLAN"
+  },
+  "Find and reach phones on the same Wi-Fi or Ethernet network.": {
+    "Find and reach phones on the same Wi-Fi or Ethernet network.": "Smartphones im selben WLAN- oder Ethernet-Netz finden und erreichen."
+  },
+  "Find phones and connect to them; needed when they are on another network.": {
+    "Find phones and connect to them; needed when they are on another network.": "Smartphones finden und sich mit ihnen verbinden; nötig, wenn sie in einem anderen Netz sind."
+  },
+  "Finish setting up Quick Share": {
+    "Finish setting up Quick Share": "Quick Share fertig einrichten"
+  },
+  "Folder for received files": {
+    "Folder for received files": "Ordner für empfangene Dateien"
+  },
+  "For Wi-Fi cards that cannot run a second link: briefly leave your network during a transfer, then reconnect.": {
+    "For Wi-Fi cards that cannot run a second link: briefly leave your network during a transfer, then reconnect.": "Für WLAN-Karten ohne zweite Verbindung: Während einer Übertragung kurz das Netz verlassen und danach wieder verbinden."
+  },
+  "From %1": {
+    "From %1": "Von %1"
+  },
+  "Hidden": {
+    "Hidden": "Verborgen"
+  },
+  "How nearby phones see this PC. Press Enter to save.": {
+    "How nearby phones see this PC. Press Enter to save.": "So sehen Smartphones in der Nähe diesen PC. Mit Enter speichern."
+  },
+  "Install": {
+    "Install": "Installieren"
+  },
+  "Installing the Wi-Fi helper failed.": {
+    "Installing the Wi-Fi helper failed.": "Der WLAN-Helfer konnte nicht installiert werden."
+  },
+  "Installing…": {
+    "Installing…": "Wird installiert…"
+  },
+  "Local network": {
+    "Local network": "Lokales Netzwerk"
+  },
+  "Looking for nearby devices. On the other phone, open Quick Share and make it visible.": {
+    "Looking for nearby devices. On the other phone, open Quick Share and make it visible.": "Suche nach Geräten in der Nähe. Öffne auf dem anderen Smartphone Quick Share und mache es sichtbar."
+  },
+  "Move transfers from Bluetooth to a direct Wi-Fi link, also between different networks. Your own Wi-Fi connection stays as it is.": {
+    "Move transfers from Bluetooth to a direct Wi-Fi link, also between different networks. Your own Wi-Fi connection stays as it is.": "Übertragungen von Bluetooth auf eine direkte WLAN-Verbindung verlegen, auch zwischen verschiedenen Netzen. Deine eigene WLAN-Verbindung bleibt unverändert."
+  },
+  "Nearby": {
+    "Nearby": "In der Nähe"
+  },
+  "Nearby devices": {
+    "Nearby devices": "Geräte in der Nähe"
+  },
+  "Not running": {
+    "Not running": "Läuft nicht"
+  },
+  "Not visible; you can still send": {
+    "Not visible; you can still send": "Nicht sichtbar; Senden geht trotzdem"
+  },
+  "Notifications": {
+    "Notifications": "Benachrichtigungen"
+  },
+  "On your network": {
+    "On your network": "In deinem Netzwerk"
+  },
+  "Open": {
+    "Open": "Öffnen"
+  },
+  "Open Quick Share in the bar and press Install.": {
+    "Open Quick Share in the bar and press Install.": "Öffne Quick Share in der Leiste und klicke auf Installieren."
+  },
+  "Phones find this PC over Bluetooth.": {
+    "Phones find this PC over Bluetooth.": "Smartphones finden diesen PC über Bluetooth."
+  },
+  "Quick Share": {
+    "Quick Share": "Quick Share"
+  },
+  "Quick Share is not running": {
+    "Quick Share is not running": "Quick Share läuft nicht"
+  },
+  "Quick Share is not running. Enable the plugin to change its settings.": {
+    "Quick Share is not running. Enable the plugin to change its settings.": "Quick Share läuft nicht. Aktiviere das Plugin, um die Einstellungen zu ändern."
+  },
+  "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The first build takes a few minutes.": {
+    "Quick Share needs its background service. It is built from this plugin's source code on your PC and installed to ~/.local/bin, without root access. The first build takes a few minutes.": "Quick Share braucht seinen Hintergrunddienst. Er wird aus dem Quellcode dieses Plugins auf deinem PC gebaut und ohne Root-Rechte nach ~/.local/bin installiert. Der erste Build dauert ein paar Minuten."
+  },
+  "Quick Share: finish the setup": {
+    "Quick Share: finish the setup": "Quick Share: Einrichtung abschließen"
+  },
+  "Received": {
+    "Received": "Empfangen"
+  },
+  "Receiving": {
+    "Receiving": "Empfange"
+  },
+  "Recent": {
+    "Recent": "Zuletzt"
+  },
+  "Remove from list": {
+    "Remove from list": "Aus der Liste entfernen"
+  },
+  "Save name": {
+    "Save name": "Namen speichern"
+  },
+  "Save received files to": {
+    "Save received files to": "Empfangene Dateien speichern in"
+  },
+  "Send %1 file(s) to": {
+    "Send %1 file(s) to": "%1 Datei(en) senden an"
+  },
+  "Sending": {
+    "Sending": "Sende"
+  },
+  "Sent": {
+    "Sent": "Gesendet"
+  },
+  "Show in folder": {
+    "Show in folder": "Im Ordner anzeigen"
+  },
+  "Shown as %1": {
+    "Shown as %1": "Angezeigt als %1"
+  },
+  "Starting Quick Share…": {
+    "Starting Quick Share…": "Quick Share wird gestartet…"
+  },
+  "Switch Bluetooth on at start": {
+    "Switch Bluetooth on at start": "Bluetooth beim Start einschalten"
+  },
+  "Temporary visibility lasts": {
+    "Temporary visibility lasts": "Vorübergehende Sichtbarkeit dauert"
+  },
+  "The build failed.": {
+    "The build failed.": "Der Build ist fehlgeschlagen."
+  },
+  "The plugin was updated. Rebuild the service (version %1) to match the plugin (version %2).": {
+    "The plugin was updated. Rebuild the service (version %1) to match the plugin (version %2).": "Das Plugin wurde aktualisiert. Baue den Dienst (Version %1) neu, damit er zum Plugin (Version %2) passt."
+  },
+  "This device": {
+    "This device": "Dieses Gerät"
+  },
+  "To %1": {
+    "To %1": "An %1"
+  },
+  "Transfers": {
+    "Transfers": "Übertragungen"
+  },
+  "Turn on": {
+    "Turn on": "Einschalten"
+  },
+  "Update": {
+    "Update": "Aktualisieren"
+  },
+  "Update the Quick Share service": {
+    "Update the Quick Share service": "Quick-Share-Dienst aktualisieren"
+  },
+  "Visibility": {
+    "Visibility": "Sichtbarkeit"
+  },
+  "Visible for %1 min": {
+    "Visible for %1 min": "Sichtbar für %1 Min."
+  },
+  "Visible to everyone": {
+    "Visible to everyone": "Für alle sichtbar"
+  },
+  "Visible to everyone for %1 minutes": {
+    "Visible to everyone for %1 minutes": "%1 Minuten für alle sichtbar"
+  },
+  "Waiting for %1 to accept": {
+    "Waiting for %1 to accept": "Warte, bis %1 annimmt"
+  },
+  "Waiting for you": {
+    "Waiting for you": "Wartet auf dich"
+  },
+  "When visible. Never overrides airplane mode.": {
+    "When visible. Never overrides airplane mode.": "Wenn sichtbar. Überschreibt nie den Flugmodus."
+  },
+  "Wi-Fi": {
+    "Wi-Fi": "WLAN"
+  },
+  "Wi-Fi Direct": {
+    "Wi-Fi Direct": "Wi-Fi Direct"
+  },
+  "Wi-Fi helper": {
+    "Wi-Fi helper": "WLAN-Helfer"
+  },
+  "Wi-Fi hotspot": {
+    "Wi-Fi hotspot": "WLAN-Hotspot"
+  },
+  "Wi-Fi network \"%1\"": {
+    "Wi-Fi network \"%1\"": "WLAN-Netzwerk „%1“"
+  },
+  "Without a second Wi-Fi adapter, this PC needs the helper for fast transfers while the phone is on another network. It runs a temporary link next to your Wi-Fi connection. Installing asks for your password once.": {
+    "Without a second Wi-Fi adapter, this PC needs the helper for fast transfers while the phone is on another network. It runs a temporary link next to your Wi-Fi connection. Installing asks for your password once.": "Ohne zweiten WLAN-Adapter braucht dieser PC den Helfer für schnelle Übertragungen, wenn das Handy in einem anderen Netz ist. Er baut neben deiner WLAN-Verbindung eine vorübergehende Verbindung auf. Die Installation fragt einmal nach deinem Passwort."
+  }
+}
