@@ -19,10 +19,10 @@ daemon also has a command line interface, so it works without the shell too.
 - **Send** files, links and text to nearby phones.
 - **Your device name and visibility** like on Android: visible to everyone,
   to everyone for 10 minutes, or hidden (sending still works while hidden).
-- **No pairing prompts**: phones connect over Bluetooth Low Energy. When a
-  connection uses Bluetooth Classic instead, the daemon answers that phone's
-  pairing request and removes the pairing afterwards (see
-  [Privacy and security](#privacy-and-security)).
+- **No pairing prompts**: phones connect over Bluetooth Low Energy. When the
+  PC sends over Bluetooth Classic instead, the daemon answers the pairing
+  request of the phone you are sending to and removes the pairing afterwards
+  (see [Privacy and security](#privacy-and-security)).
 - **Fast Wi-Fi transfers, also between different networks.** Bluetooth only
   sets up the connection; the data then moves over Wi-Fi (see
   [How the Wi-Fi part works](#how-the-wi-fi-part-works)). Your own Wi-Fi
@@ -210,12 +210,12 @@ The PC keeps its own Wi-Fi connection in every mode except the opt-in
   phone.
 - The daemon writes only to your download folder, `~/.config/dms-quickshare/`
   and its socket in `$XDG_RUNTIME_DIR`.
-- Bluetooth Classic is only used when the PC sends, or as a fallback when
-  Bluetooth LE connections are unavailable. A phone may then ask for a
-  "Just Works" pairing. The daemon answers that one request itself only if
-  it comes from the phone you are sending to, or from the device that just
-  read the Quick Share advertisement while you are visible; any other
-  request is left to you. The pairing is removed again after the transfer.
+- Phones send to the PC over Bluetooth LE, which needs no pairing.
+  Bluetooth Classic is only used when the PC sends to a phone; the phone may
+  then ask for a "Just Works" pairing. The daemon answers that one request
+  only if it comes from the phone you are sending to, and removes the
+  pairing again after the transfer. It never answers pairing requests from
+  any other device; Dux handles those like any other Bluetooth pairing.
   Devices you paired yourself are never touched.
 - When Bluetooth is switched on: opening the panel only looks for devices if
   it is already on. The daemon powers the adapter on when you choose a

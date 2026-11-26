@@ -97,9 +97,6 @@ pub enum BtEvent {
     NearbySharing,
     /// Incoming RFCOMM connection (socket, BlueZ device path).
     Incoming(OwnedFd, String),
-    /// A phone read our advertisement over GATT (it is about to connect);
-    /// its address, when BlueZ says which device read it.
-    AdvertisementRead(Option<String>),
 }
 
 pub struct Bluetooth {
@@ -294,7 +291,6 @@ impl GattService {
 
 struct GattSlotCharacteristic {
     value: Vec<u8>,
-    events: mpsc::Sender<BtEvent>,
 }
 
 #[interface(name = "org.bluez.GattCharacteristic1")]
@@ -309,7 +305,6 @@ impl GattSlotCharacteristic {
             .and_then(|v| OwnedObjectPath::try_from(v.clone()).ok())
             .and_then(|p| address_from_path(p.as_str()));
         debug!("Bluetooth: GATT read of the advertisement by {reader:?} (offset {offset})");
-        let _ = self.events.try_send(BtEvent::AdvertisementRead(reader));
         self.value.get(offset..).unwrap_or_default().to_vec()
     }
 
@@ -509,7 +504,6 @@ impl Bluetooth {
             desired_rx,
             enable_rx,
             status_tx,
-            events.clone(),
         ));
         tokio::spawn(signal_loop(conn, events));
         Ok(bt)
@@ -774,7 +768,6 @@ async fn reconcile_loop(
     mut desired_rx: watch::Receiver<Desired>,
     mut enable_rx: mpsc::Receiver<EnableRequest>,
     status_tx: watch::Sender<BtStatus>,
-    events: mpsc::Sender<BtEvent>,
 ) {
     let mut applied = Applied::default();
     let mut owner_changes = match MatchRule::builder()
@@ -797,7 +790,7 @@ async fn reconcile_loop(
     let mut retry: Option<Duration> = None;
     loop {
         let desired = desired_rx.borrow_and_update().clone();
-        let status = apply(&conn, &desired, &mut applied, &events).await;
+        let status = apply(&conn, &desired, &mut applied).await;
         retry = needs_retry(&desired, &applied, &status).then(|| {
             retry.map_or(Duration::from_secs(5), |d| {
                 (d * 2).min(Duration::from_secs(60))
@@ -944,12 +937,7 @@ async fn restore_connectable(conn: &Connection, applied: &mut Applied) {
     }
 }
 
-async fn apply(
-    conn: &Connection,
-    desired: &Desired,
-    applied: &mut Applied,
-    events: &mpsc::Sender<BtEvent>,
-) -> BtStatus {
+async fn apply(conn: &Connection, desired: &Desired, applied: &mut Applied) -> BtStatus {
     let (soft, hard) = rfkill_state();
     let mut status = BtStatus {
         blocked: soft || hard,
@@ -1120,7 +1108,7 @@ async fn apply(
                         false
                     }
                 };
-            let gatt = match register_gatt(conn, &adapter, data.clone(), events.clone()).await {
+            let gatt = match register_gatt(conn, &adapter, data.clone()).await {
                 Ok(()) => true,
                 Err(e) => {
                     warn!("Bluetooth: GATT advertisement server failed: {e:#}");
@@ -1305,18 +1293,13 @@ async fn register_adv(
     Ok(())
 }
 
-async fn register_gatt(
-    conn: &Connection,
-    adapter: &str,
-    value: Vec<u8>,
-    events: mpsc::Sender<BtEvent>,
-) -> Result<()> {
+async fn register_gatt(conn: &Connection, adapter: &str, value: Vec<u8>) -> Result<()> {
     unregister_gatt(conn, adapter).await;
     let server = conn.object_server();
     // Populate the tree first, then add the ObjectManager on top of it.
     server.at(GATT_SERVICE_PATH, GattService).await?;
     server
-        .at(GATT_CHAR_PATH, GattSlotCharacteristic { value, events })
+        .at(GATT_CHAR_PATH, GattSlotCharacteristic { value })
         .await?;
     server.at(GATT_ROOT, zbus::fdo::ObjectManager).await?;
     let opts: HashMap<&str, Variant<'_>> = HashMap::new();

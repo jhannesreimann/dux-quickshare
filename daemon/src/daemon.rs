@@ -258,10 +258,10 @@ struct State {
     discovery_until: Option<Instant>,
     ui_clients: usize,
     next_id: u64,
-    /// Addresses whose "Just Works" pairing request we answer (see dux.rs):
-    /// the phone we are sending to, or one that just read our advertisement.
-    /// Address -> (until when, only while visible). One request each.
-    pairing_allowed: HashMap<String, (Instant, bool)>,
+    /// Phones we are sending to over Bluetooth Classic, whose "Just Works"
+    /// pairing request we answer (see dux.rs): address -> until when. One
+    /// request each.
+    pairing_allowed: HashMap<String, Instant>,
     /// Pairings we accepted for Quick Share (device path -> when), removed later.
     temp_pairings: HashMap<String, Instant>,
     /// Device paths with a running incoming Bluetooth session.
@@ -647,11 +647,7 @@ impl Daemon {
             && let (Some((mac, _)), Some(bt)) = (dev.bt, self.bt.get())
         {
             // The phone may ask to pair when we connect over Bluetooth Classic.
-            self.allow_pairing(
-                crate::bluetooth::format_mac(mac),
-                Duration::from_secs(180),
-                false,
-            );
+            self.allow_pairing(crate::bluetooth::format_mac(mac));
             match bt.connect(mac).await {
                 Ok(s) => stream = Some((Box::new(s), "bluetooth")),
                 Err(e) => errors.push(format!("Bluetooth: {e:#}")),
@@ -669,29 +665,28 @@ impl Daemon {
 
     // ----- temporary Bluetooth pairings (see dux.rs) -----
 
-    fn allow_pairing(&self, address: String, for_how_long: Duration, only_while_visible: bool) {
-        let mut st = self.lock();
-        let until = Instant::now() + for_how_long;
-        st.pairing_allowed
-            .insert(address.to_uppercase(), (until, only_while_visible));
+    /// Expect a pairing request from the phone we start sending to.
+    fn allow_pairing(&self, address: String) {
+        let until = Instant::now() + Duration::from_secs(180);
+        self.lock()
+            .pairing_allowed
+            .insert(address.to_uppercase(), until);
     }
 
-    /// Whether a "Just Works" pairing request from `address` belongs to a
-    /// Quick Share connection: it comes from the phone we are sending to, or
-    /// from the device that just read our advertisement while we are visible.
+    /// Whether a "Just Works" pairing request from `address` comes from the
+    /// phone the user is sending to. Every other request is left to the user
+    /// (Dux's Bluetooth agent).
     pub async fn should_accept_pairing(&self, address: &str) -> bool {
         let (allowed, rate_ok) = {
             let mut st = self.lock();
             let now = Instant::now();
             st.recent_pairing_accepts
                 .retain(|t| now.duration_since(*t) < Duration::from_secs(60));
-            st.pairing_allowed.retain(|_, (until, _)| *until > now);
-            let visible = st.visible();
+            st.pairing_allowed.retain(|_, until| *until > now);
             let allowed = st.config.use_bluetooth
                 && st
                     .pairing_allowed
-                    .get(&address.trim().to_uppercase())
-                    .is_some_and(|(_, only_while_visible)| visible || !only_while_visible);
+                    .contains_key(&address.trim().to_uppercase());
             (allowed, st.recent_pairing_accepts.len() < 5)
         };
         if !(allowed && rate_ok) {
@@ -987,10 +982,6 @@ async fn bt_events(d: Arc<Daemon>, mut rx: mpsc::Receiver<BtEvent>) {
                     }
                 });
             }
-            BtEvent::AdvertisementRead(Some(reader)) => {
-                d.allow_pairing(reader, Duration::from_secs(600), true);
-            }
-            BtEvent::AdvertisementRead(None) => {}
             BtEvent::Sighting(s) => {
                 let id = s.endpoint.endpoint_id.clone();
                 let discovering = d.lock().discovery_until.is_some();
